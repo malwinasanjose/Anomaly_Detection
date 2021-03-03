@@ -1,0 +1,45 @@
+WITH 
+c AS (
+SELECT 
+ps.[PRIMARY],
+ps.WARM,
+ps.TEACH_ACTIVE ,
+ps.READY,
+pa.ID,
+COALESCE(ps.MA_NR, pa.MA_NR) MA_NR,
+COALESCE(ps.WZS_ID, pa.WZS_ID) WZS_ID,
+COALESCE(ps.INSDATE, pa.INSDATE) INSDATE,
+CASE 
+  WHEN  pa.id IS NULL THEN 0
+  ELSE 1 
+END sharpening,
+CASE
+  WHEN COALESCE(ps.WZS_ID, pa.WZS_ID) = LAG(COALESCE(ps.WZS_ID, pa.WZS_ID)) OVER (PARTITION BY COALESCE(ps.MA_NR, pa.MA_NR) ORDER BY COALESCE(ps.INSDATE, pa.INSDATE)) THEN 0 
+  ELSE 1
+END new_wheel
+FROM dbo.prozessmessung_schleifen ps 
+FULL OUTER JOIN dbo.prozessmessung_abrichten pa 
+ON ps.INSDATE = pa.INSDATE 
+AND ps.MA_NR = pa.MA_NR
+AND ps.WZS_ID = pa.WZS_ID 
+WHERE COALESCE(pa.MA_NR, ps.MA_NR) in ({ma_nr})
+),
+c1 AS (
+SELECT
+c.*, 
+SUM(new_wheel) OVER(PARTITION BY MA_NR ORDER BY INSDATE ROWS UNBOUNDED PRECEDING) AS wheel_num,
+SUM(sharpening) OVER(PARTITION BY MA_NR, WZS_ID ORDER BY INSDATE ROWS UNBOUNDED PRECEDING) AS sharpening_cycle 
+FROM c
+)
+SELECT 
+c1.[PRIMARY],
+c1.MA_NR,
+c1.wheel_num,
+c1.sharpening_cycle,
+ROW_NUMBER () OVER(PARTITION BY MA_NR, WZS_ID, sharpening_cycle ORDER BY INSDATE) gear_number
+FROM c1
+WHERE sharpening = 0
+AND WARM = 0
+AND TEACH_ACTIVE = 0
+AND READY = 1
+;
