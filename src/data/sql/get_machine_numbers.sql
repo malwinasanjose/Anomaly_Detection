@@ -1,0 +1,9 @@
+SELECT MA_NR, 
+COUNT(*) AS records
+FROM dbo.prozessmessung_schleifen
+WHERE WARM = 0
+AND TEACH_ACTIVE = 0
+AND READY = 1
+GROUP BY MA_NR
+HAVING COUNT(*) > 1000
+ORDER BY records DESC
